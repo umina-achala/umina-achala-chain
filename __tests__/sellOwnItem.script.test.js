@@ -220,9 +220,9 @@ describe("sellOwnItem.js", () => {
     expect(step("hcs").signed).toEqual([pub(submitKey)]);
   });
 
-  test("sells nothing when the Treasury no longer holds the serial", async () => {
+  test.each([[[]], [["--dry-run"]]])("sells nothing when the Treasury no longer holds the serial %j", async (extra) => {
     mockDependencies({ holder: "0.0.7007" });
-    await runScript("7", "100");
+    await runScript("7", "100", ...extra);
 
     expect(calls.mirror).toContain("https://testnet.mirrornode.hedera.com/api/v1/tokens/0.0.2002/nfts/7");
     expect(console.error).toHaveBeenCalledWith(
@@ -286,13 +286,14 @@ describe("sellOwnItem.js", () => {
     },
   ];
 
-  test("reads the provenance topic before selling, also on --dry-run", async () => {
+  test("reads the provenance topic and the holder before selling, also on --dry-run", async () => {
     mockDependencies();
     await runScript("7", "100", "--dry-run");
 
     expect(calls.mirror).toEqual([
       "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.3003",
       "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.3003/messages?limit=100&order=asc",
+      "https://testnet.mirrornode.hedera.com/api/v1/tokens/0.0.2002/nfts/7",
     ]);
   });
 

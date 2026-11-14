@@ -12,7 +12,7 @@ import {
   TokenAssociateTransaction,
 } from "@hashgraph/sdk";
 import { NftId, TokenId } from "@hashgraph/sdk";
-import { ROYALTY, TOKEN_CLASSES } from "../token/lib.js";
+import { ROYALTY } from "../token/lib.js";
 import { envProblems, serialProblem } from "../env.js";
 import { achalaSaleFields, achalaSalePlan, mountedProblem } from "../mint/achala.js";
 import { mountIds } from "../provenance.js";
@@ -95,7 +95,7 @@ export function roleProblems(env, role, tokenClass = "umina") {
   return envProblems(env, [
     "OPERATOR_ID",
     "OPERATOR_KEY",
-    TOKEN_CLASSES[tokenClass].envVar,
+    ...tokenVars(tokenClass),
     `${prefix}_ID`,
     `${prefix}_KEY`,
   ]);

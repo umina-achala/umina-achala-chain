@@ -1,12 +1,13 @@
 /**
  * @file associateToken.js
- * @description Associates a token (Umiña by default, Achala with --token
- * achala) with a merchant or buyer test account on Hedera (NETWORK,
- * required). An account must associate a token before it can receive one of its
- * NFTs: the buyer before sellConsigned.js or sellOwnItem.js, the merchant
- * before consignToMerchant.js (which also does it for the merchant). The buyer
- * of an Achala receives its Umiña stones too, so associates both tokens
- * (umina-achala-chain#26).
+ * @description Associates the Umiña token, or with --token achala both the
+ * Achala and the Umiña tokens, with a merchant or buyer test account on
+ * Hedera (NETWORK, required). An account must associate a token before it can
+ * receive one of its NFTs: the buyer before sellConsigned.js or
+ * sellOwnItem.js, the merchant before consignToMerchant.js (which also does it
+ * for the merchant). An Achala moves with its Umiña stones, so --token achala
+ * associates both tokens (umina-achala-chain#26, #28); a token already
+ * associated is skipped.
  *
  * Run from the command line, with NETWORK set (testnet or mainnet; it has no
  * default and the script refuses to run without it, see src/network.js):
@@ -19,9 +20,9 @@
 
 import { parseArgs } from "util";
 import { AccountId, TokenId } from "@hashgraph/sdk";
-import { associateToken, roleProblems, ROLES } from "./lib.js";
+import { associateToken, roleProblems, ROLES, tokenVars } from "./lib.js";
 import { parseEcdsaKey } from "../keys.js";
-import { TOKEN_CLASSES, tokenClassProblem } from "../token/lib.js";
+import { tokenClassProblem } from "../token/lib.js";
 import { fail, loadEnv, runScript } from "../script.js";
 
 let role, dryRun, tokenClass, argProblem;
@@ -45,9 +46,11 @@ const USAGE = `Associate a token with the merchant or buyer test account, so it 
 Usage: NETWORK=testnet node src/consignment/associateToken.js <merchant|buyer> [--token umina|achala] [--dry-run]
 
   <merchant|buyer>       the account: MERCHANT_ID/KEY or BUYER_ID/KEY
-  --token umina|achala   the token to associate (default umina)`;
+  --token umina|achala   umina (default) associates the Umiña token; achala
+                         associates both, since an Achala moves with its stones`;
 
-runScript("Association failed", async (session) => {
+// Exported so tests can wait for the run to finish
+export const done = runScript("Association failed", async (session) => {
   // --- 1. Check the role and environment ---
   const problems = argProblem ? [argProblem] : roleProblems(process.env, role, tokenClass);
   if (problems.length) return fail(problems);
@@ -55,10 +58,10 @@ runScript("Association failed", async (session) => {
   const prefix = ROLES[role];
   const accountId = AccountId.fromString(process.env[`${prefix}_ID`]);
   const accountKey = parseEcdsaKey(process.env[`${prefix}_KEY`]);
-  const tokenId = TokenId.fromString(process.env[TOKEN_CLASSES[tokenClass].envVar]);
+  const tokenIds = tokenVars(tokenClass).map((name) => TokenId.fromString(process.env[name]));
 
   if (dryRun) {
-    console.log(`Would associate ${tokenId} with ${role} ${accountId}`);
+    tokenIds.forEach((id) => console.log(`Would associate ${id} with ${role} ${accountId}`));
     console.log("Dry run, nothing sent.");
     return;
   }
@@ -66,11 +69,13 @@ runScript("Association failed", async (session) => {
   // --- 2. Connect to Hedera (UA pays the fee) ---
   const client = session.connect();
 
-  // --- 3. Associate (the account signs) ---
-  const associated = await associateToken(client, accountId, accountKey, tokenId);
-  console.log(
-    associated
-      ? `✅ ${role} ${accountId} associated ${tokenId}`
-      : `ℹ️  ${role} ${accountId} already associated ${tokenId}`,
-  );
+  // --- 3. Associate each token (the account signs) ---
+  for (const tokenId of tokenIds) {
+    const associated = await associateToken(client, accountId, accountKey, tokenId);
+    console.log(
+      associated
+        ? `✅ ${role} ${accountId} associated ${tokenId}`
+        : `ℹ️  ${role} ${accountId} already associated ${tokenId}`,
+    );
+  }
 }, { usage: USAGE });

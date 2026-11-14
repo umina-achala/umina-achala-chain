@@ -13,10 +13,9 @@
  * The network is NETWORK (required, see src/network.js) and the env
  * file defaults to its own (.env.testnet); a file given must name the network.
  * The topic kind is required, so a topic is never created without saying which.
- * --dry-run checks the environment and prints the topic parameters without keys
- * and without touching the network. A real run first checks the mirror node and
- * refuses when the env variable already names an existing topic; --force skips
- * that.
+ * Every run first checks the mirror node and refuses when the env variable
+ * already names an existing topic; --force skips that. --dry-run does that
+ * check, prints the topic parameters without keys and sends nothing.
  */
 
 import {
@@ -58,15 +57,7 @@ runScript("Topic creation failed", async (session) => {
   if (problems.length) return fail(problems, `Problems in ${envFile}`);
   console.log(`🚀 Creating the ${ua.name} ${kind} topic...`);
 
-  // --- 2. Build the transaction ---
-  const transaction = buildTopicTransaction(process.env, kind);
-  if (dryRun) {
-    console.log("Dry run, nothing sent:");
-    console.log(describeTopic(process.env, kind));
-    return;
-  }
-
-  // --- 3. Refuse to replace a topic that already exists ---
+  // --- 2. Refuse to replace a topic that already exists (mirror node, also on --dry-run) ---
   if (!force) {
     const existing = await existingTopicProblem(process.env, kind);
     if (existing) {
@@ -74,6 +65,14 @@ runScript("Topic creation failed", async (session) => {
       process.exitCode = 1;
       return;
     }
+  }
+
+  // --- 3. Build the transaction ---
+  const transaction = buildTopicTransaction(process.env, kind);
+  if (dryRun) {
+    console.log("Dry run, nothing sent:");
+    console.log(describeTopic(process.env, kind));
+    return;
   }
 
   // --- 4. Connect to Hedera, sign and execute ---

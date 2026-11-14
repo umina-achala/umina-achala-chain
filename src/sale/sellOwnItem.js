@@ -25,8 +25,8 @@
  * Treasury signs the NFT transfer: with TREASURY_KEY when it is not the
  * operator account.
  *
- * Every run reads the provenance topic first; --dry-run does that check,
- * shows the sale and sends nothing.
+ * Every run reads the provenance topic and the holders (mirror node) first;
+ * --dry-run does those checks, shows the sale and sends nothing.
  *
  * No consignment, allowance or split is involved (see consignment/ for those).
  * A royalty is not expected, because the Treasury is the fee collector; check
@@ -101,6 +101,10 @@ runScript("Sale failed", async (session) => {
   const uminaTokenId = isAchala ? TokenId.fromString(process.env.UMINA_TOKEN_ID) : null;
   const nftIds = [nftId, ...plan.stones.map((s) => new NftId(uminaTokenId, Number(s.serial)))];
 
+  // --- 3. Check the Treasury still holds every NFT that moves (mirror node, nfts.js) ---
+  const held = holderProblems(nftIds, await readHolders(nftIds), treasuryId.toString());
+  if (held.length) return fail(held);
+
   console.table({
     nft: nftId.toString(),
     ...(isAchala && { piece: plan.achalaId, stones: plan.stones.map((s) => s.stone_id).join(", ") }),
@@ -113,10 +117,6 @@ runScript("Sale failed", async (session) => {
     console.log("Dry run, nothing sent.");
     return;
   }
-
-  // --- 3. Check the Treasury still holds every NFT that moves (mirror node, nfts.js) ---
-  const held = holderProblems(nftIds, await readHolders(nftIds), treasuryId.toString());
-  if (held.length) return fail(held);
 
   // --- 4. Connect to Hedera as UA ---
   const client = session.connect();

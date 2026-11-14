@@ -165,13 +165,37 @@ describe("createTopic.js", () => {
     expect(process.exitCode).toBe(1);
   });
 
-  test("--dry-run prints the parameters and touches neither Hedera nor the mirror node", async () => {
-    mockDependencies();
+  test("--dry-run checks the mirror node, prints the parameters and does not touch Hedera", async () => {
+    mockDependencies({ mirrorStatus: 404 });
     await runScript("provenance", "--dry-run");
 
     expect(console.log).toHaveBeenCalledWith("Dry run, nothing sent:");
-    expect(calls.mirror).toEqual([]);
+    expect(calls.mirror).toEqual([
+      "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.1234",
+    ]);
     expect(calls.forTestnet).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  test("--dry-run refuses like a real run when the topic already exists", async () => {
+    mockDependencies({ mirrorStatus: 200, mirrorBody: { deleted: false, memo: "Umiña Achala provenance" } });
+    await runScript("provenance", "--dry-run");
+
+    expect(console.error).toHaveBeenCalledWith(
+      '❌ HCS_TOPIC_ID already names topic 0.0.1234 ("Umiña Achala provenance"). Use --force to create a new one anyway.',
+    );
+    expect(console.log).not.toHaveBeenCalledWith("Dry run, nothing sent:");
+    expect(calls.forTestnet).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  test("--dry-run --force skips the mirror node check", async () => {
+    mockDependencies({ mirrorStatus: 200, mirrorBody: { deleted: false, memo: "x" } });
+    await runScript("provenance", "--dry-run", "--force");
+
+    expect(calls.mirror).toEqual([]);
+    expect(console.log).toHaveBeenCalledWith("Dry run, nothing sent:");
+    expect(process.exitCode).toBeUndefined();
   });
 
   test("takes another testnet env file", async () => {
